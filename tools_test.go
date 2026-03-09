@@ -136,3 +136,23 @@ func TestTools_UploadFiles(t *testing.T) {
 func TestTools_UploadOneFile(t *testing.T) {
 	// TODO: implement test for UploadOneFile
 }
+
+func TestTools_CreateDirIfNotExist(t *testing.T) {
+	var tools Tools
+
+	err := tools.CreateDirIfNotExist("./testData/test-dir")
+	if err != nil {
+		t.Error("Error creating directory: ", err)
+	}
+
+	if _, err := os.Stat("./testData/test-dir"); os.IsNotExist(err) {
+		t.Error("Expected directory not found: ", err)
+	}
+
+	err = tools.CreateDirIfNotExist("./testData/test-dir")
+	if err != nil {
+		t.Error("Error creating directory: ", err)
+	}
+
+	_ = os.Remove("./testData/test-dir")
+}
