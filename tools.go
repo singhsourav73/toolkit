@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strings"
 )
 
 const randomSourceString = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01923456789_#@&*"
@@ -152,4 +154,19 @@ func (t *Tools) CreateDirIfNotExist(path string) error {
 		return os.MkdirAll(path, mode)
 	}
 	return nil
+}
+
+// Slugify returns a slugified version of the input string
+func (t *Tools) Slugify(s string) (string, error) {
+	if s == "" {
+		return "", errors.New("input string cannot be empty")
+	}
+
+	var re = regexp.MustCompile(`[^\w]+`)
+	slug := strings.Trim(re.ReplaceAllString(s, "-"), "-")
+	if slug == "" {
+		return "", errors.New("slugified string cannot be empty")
+	}
+
+	return slug, nil
 }

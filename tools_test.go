@@ -156,3 +156,60 @@ func TestTools_CreateDirIfNotExist(t *testing.T) {
 
 	_ = os.Remove("./testData/test-dir")
 }
+
+var slugTest = []struct {
+	name          string
+	input         string
+	expected      string
+	errorExpected bool
+}{
+	{
+		name:          "normal string",
+		input:         "This is a test string !!! to be slugified!",
+		expected:      "This-is-a-test-string-to-be-slugified",
+		errorExpected: false,
+	},
+	{
+		name:          "string with only special characters",
+		input:         "!!!@@@###$$$%%%^^^&&&***((()))",
+		expected:      "",
+		errorExpected: true,
+	},
+	{
+		name:          "string with leading and trailing special characters",
+		input:         "!!!This is a test string !!! to be slugified!@@@",
+		expected:      "This-is-a-test-string-to-be-slugified",
+		errorExpected: false,
+	},
+	{
+		name:          "empty string",
+		input:         "",
+		expected:      "",
+		errorExpected: true,
+	},
+	{
+		name:          "string with only chinese characters",
+		input:         "这是一个测试字符串",
+		expected:      "",
+		errorExpected: true,
+	},
+}
+
+func TestTools_Slugify(t *testing.T) {
+	var tools Tools
+
+	for _, e := range slugTest {
+		slug, err := tools.Slugify(e.input)
+		if e.errorExpected && err == nil {
+			t.Error("Error expected but got nil")
+		}
+
+		if !e.errorExpected && err != nil {
+			t.Error("Error not expected but got: ", err)
+		}
+
+		if !e.errorExpected && slug != e.expected {
+			t.Errorf("Expected slug to be %s but got: %s", e.expected, slug)
+		}
+	}
+}
