@@ -172,6 +172,7 @@ func (t *Tools) Slugify(s string) (string, error) {
 	return slug, nil
 }
 
+// DownloadStaticFile serves a static file for download
 func (t *Tools) DownloadStaticFile(w http.ResponseWriter, r *http.Request, filePath, fileName, displayName string) {
 	fp := path.Join(filePath, fileName)
 	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", displayName))
