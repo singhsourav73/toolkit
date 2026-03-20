@@ -213,3 +213,33 @@ func TestTools_Slugify(t *testing.T) {
 		}
 	}
 }
+
+func TestTools_DownloadStaticFile(t *testing.T) {
+	rr := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/", nil)
+
+	var tool Tools
+	tool.DownloadStaticFile(rr, req, "./testData", "Room.jpeg", "interior-design.jpeg")
+
+	res := rr.Result()
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		t.Errorf("Expected status code %d but got %d", http.StatusOK, res.StatusCode)
+	}
+
+	contentDisposition := res.Header.Get("Content-Disposition")
+	expectedContentDisposition := "attachment; filename=\"interior-design.jpeg\""
+	if contentDisposition != expectedContentDisposition {
+		t.Errorf("Expected Content-Disposition header to be %s but got %s", expectedContentDisposition, contentDisposition)
+	}
+
+	if res.Header["Content-Length"][0] != "53614" {
+		t.Errorf("Content length do not match: expected 53614 but got %s", res.Header["Content-Length"][0])
+	}
+
+	_, err := io.ReadAll(res.Body)
+	if err != nil {
+		t.Error("Error reading response body: ", err)
+	}
+}
