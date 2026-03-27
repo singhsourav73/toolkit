@@ -1,6 +1,9 @@
 package toolkit
 
 import (
+	"bytes"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"image"
 	"image/png"
@@ -241,5 +244,178 @@ func TestTools_DownloadStaticFile(t *testing.T) {
 	_, err := io.ReadAll(res.Body)
 	if err != nil {
 		t.Error("Error reading response body: ", err)
+	}
+}
+
+var jsonTest = []struct {
+	name          string
+	json          string
+	errorExpected bool
+	maxSize       int
+	allowUnknown  bool
+}{
+	{
+		name:          "good json",
+		json:          `{"foo": "bar"}`,
+		errorExpected: false,
+		maxSize:       1024,
+		allowUnknown:  false,
+	},
+	{
+		name:          "badly formatted json",
+		json:          `{"foo":}`,
+		errorExpected: true,
+		maxSize:       1024,
+		allowUnknown:  false,
+	},
+	{
+		name:          "incorrect types in json",
+		json:          `{"foo": 123}`,
+		errorExpected: true,
+		maxSize:       1024,
+		allowUnknown:  false,
+	},
+	{
+		name:          "unknown fields in json",
+		json:          `{"foo": "bar", "unknown": "field"}`,
+		errorExpected: true,
+		maxSize:       1024,
+		allowUnknown:  false,
+	},
+	{
+		name:          "two json files in one request",
+		json:          `{"foo": "123"}{"foo": "bar"}`,
+		errorExpected: true,
+		maxSize:       1024,
+		allowUnknown:  false,
+	},
+	{
+		name:          "empty json",
+		json:          ``,
+		errorExpected: true,
+		maxSize:       1024,
+		allowUnknown:  false,
+	},
+	{
+		name:          "syntax error in json",
+		json:          `{"foo": "bar"`,
+		errorExpected: true,
+		maxSize:       1024,
+		allowUnknown:  false,
+	},
+	{
+		name:          "json with unknown fields allowed",
+		json:          `{"foo": "bar", "unknown": "field"}`,
+		errorExpected: false,
+		maxSize:       1024,
+		allowUnknown:  true,
+	},
+	{
+		name:          "json with unknown filed not allowed",
+		json:          `{"foo": "bar", "unknown": "field"}`,
+		errorExpected: true,
+		maxSize:       1024,
+		allowUnknown:  false,
+	},
+	{
+		name:          "missing filed name in json",
+		json:          `{"": "bar"}`,
+		errorExpected: true,
+		maxSize:       1024,
+		allowUnknown:  false,
+	},
+	{
+		name:          "json exceeding max size",
+		json:          `{"foo": "` + string(bytes.Repeat([]byte("a"), 1024)) + `"}`,
+		errorExpected: true,
+		maxSize:       512,
+		allowUnknown:  false,
+	},
+	{
+		name:          "Not a json",
+		json:          `This is not a json string`,
+		errorExpected: true,
+		maxSize:       1024,
+		allowUnknown:  false,
+	},
+}
+
+func TestTools_ReadJSON(t *testing.T) {
+	var testTool Tools
+
+	for _, e := range jsonTest {
+		testTool.MaxJSONSize = e.maxSize
+		testTool.AllowUnknownFields = e.allowUnknown
+
+		var decodedJSON struct {
+			Foo string `json:"foo"`
+		}
+
+		req, err := http.NewRequest(http.MethodPost, "/", bytes.NewReader([]byte(e.json)))
+		if err != nil {
+			t.Log("Error:", err)
+		}
+
+		// create a recorder to record the response
+		rr := httptest.NewRecorder()
+		err = testTool.ReadJSON(rr, req, &decodedJSON)
+
+		if e.errorExpected && err == nil {
+			t.Errorf("%s: Error expected but got nil", e.name)
+		}
+
+		if !e.errorExpected && err != nil {
+			t.Errorf("%s: Error not expected but got: %v", e.name, err)
+		}
+
+		req.Body.Close()
+	}
+}
+
+func TestTools_WriteJSON(t *testing.T) {
+	var testTool Tools
+
+	rr := httptest.NewRecorder()
+	payload := JSONResponse{
+		Error:   false,
+		Message: "Success",
+		Data:    map[string]string{"foo": "bar"},
+	}
+
+	headers := make(http.Header)
+	headers.Set("X-Custom-Header", "CustomValue")
+
+	err := testTool.WriteJSON(rr, http.StatusOK, payload, headers)
+	if err != nil {
+		t.Error("Error writing JSON:", err)
+	}
+}
+
+func TestTools_ErrorJSON(t *testing.T) {
+	var testTool Tools
+
+	rr := httptest.NewRecorder()
+	err := testTool.ErrorJSON(rr, errors.New("some random err message"), http.StatusExpectationFailed)
+	if err != nil {
+		t.Error("received error when decoding JSON", err)
+	}
+
+	var payload JSONResponse
+	decoder := json.NewDecoder(rr.Body)
+	err = decoder.Decode(&payload)
+	if err != nil {
+		t.Error("received error when decoding JSON", err)
+	}
+
+	if !payload.Error {
+		t.Error("Expected error to be true but got false")
+	}
+
+	if rr.Code != http.StatusExpectationFailed {
+		t.Errorf("Expected status code %d but got %d", http.StatusExpectationFailed, rr.Code)
+	}
+
+	if payload.Message != "some random err message" {
+		t.Errorf("Expected message to be 'some random err message' but got '%s'", payload.Message)
 	}
 }
