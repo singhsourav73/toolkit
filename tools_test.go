@@ -16,6 +16,59 @@ import (
 	"testing"
 )
 
+type RoundTripFunc func(req *http.Request) *http.Response
+
+func (f RoundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return f(req), nil
+}
+
+func NewTestClient(fn RoundTripFunc) *http.Client {
+	return &http.Client{
+		Transport: fn,
+	}
+}
+
+type CustomTransport struct{}
+
+func (t *CustomTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	return &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       io.NopCloser(bytes.NewBufferString("ok")),
+		Header:     make(http.Header),
+	}, nil
+}
+
+func TestTools_PushJSONToRemote(t *testing.T) {
+	client := NewTestClient(func(req *http.Request) *http.Response {
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Body:       io.NopCloser(bytes.NewBufferString("ok")),
+			Header:     make(http.Header),
+		}
+	})
+
+	var testTool Tools
+	var foo = struct {
+		Foo string `json:"foo"`
+	}{
+		Foo: "bar",
+	}
+
+	_, _, err := testTool.PushJSONToRemote("http://example.com/api", foo, client)
+	if err != nil {
+		t.Error("Error pushing JSON to remote: ", err)
+	}
+
+	anotherClient := &http.Client{
+		Transport: &CustomTransport{},
+	}
+
+	_, _, err = testTool.PushJSONToRemote("http://example.com/api", foo, anotherClient)
+	if err != nil {
+		t.Error("Error pushing JSON to remote with custom transport: ", err)
+	}
+}
+
 func TestTools_RandomString(t *testing.T) {
 	var testTools Tools
 
